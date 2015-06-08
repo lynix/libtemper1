@@ -28,7 +28,7 @@ static libusb_device *usb_dev = NULL;
 static libusb_device_handle *usb_handle = NULL;
 
 
-static int fail(char **errp, const char *msg)
+static void usb_teardown()
 {
 	if (usb_handle != NULL) {
 		libusb_release_interface(usb_handle, USB_IFN1);
@@ -38,6 +38,12 @@ static int fail(char **errp, const char *msg)
 	if (usb_dev != NULL)
 		libusb_unref_device(usb_dev);
 	libusb_exit(NULL);
+}
+
+
+static int fail(char **errp, const char *msg)
+{
+	usb_teardown();
 
 	if (*errp == NULL)
 		*errp = (char *)msg;
@@ -90,8 +96,13 @@ static int temper_open(char **err)
 			return fail(err, "failed to detach USB kernel driver");
 	}
 
-	if (libusb_set_configuration(usb_handle, USB_CNF) != LIBUSB_SUCCESS)
-		return fail(err, "failed to set USB device configuration");
+	int config = -1;
+	if (libusb_get_configuration(usb_handle, &config) != LIBUSB_SUCCESS)
+		return fail(err, "failed to get USB device configuration");
+	if (config != USB_CNF) {
+		if (libusb_set_configuration(usb_handle, USB_CNF) != LIBUSB_SUCCESS)
+			return fail(err, "failed to set USB device configuration");
+	}
 
 	return 0;
 }
@@ -160,4 +171,9 @@ double temper1_read(char **err)
 	temp *= 125.0 / 32000.0;
 
 	return temp;
+}
+
+void temper1_exit()
+{
+	usb_teardown();
 }
